@@ -1231,3 +1231,24 @@ Feb 12 14:15:14 k8s-node-1 kubelet[21681]: I0212 14:15:14.376419   21681 bootstr
 Feb 12 14:15:16 k8s-node-1 kubelet[21681]: I0212 14:15:16.647004   21681 bootstrap.go:239] Failed to connect to apiserver: the server has asked for the client to provide credentials
 ```
 
+http://blog.51cto.com/ylw6006/2104692
+```
+kubectl config set-cluster kubernetes \
+  --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
+  --embed-certs=true \
+  --server=https://192.168.50.10:6443 \
+  --kubeconfig=bootstrap.kubeconfig
+```
+
+```
+kubectl config set-credentials kubelet-bootstrap \
+  --token=3e6916ba861192f279c67d827952ea30 \
+  --kubeconfig=bootstrap.kubeconfig
+```
+
+```
+ kubectl config set-context default \
+  --cluster=kubernetes \
+  --user=kubelet-bootstrap \
+  --kubeconfig=bootstrap.kubeconfig
+```
