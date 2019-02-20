@@ -1236,6 +1236,9 @@ Feb 12 14:15:16 k8s-node-1 kubelet[21681]: I0212 14:15:16.647004   21681 bootstr
 
 
 ```
+http://blog.51cto.com/ylw6006/2104692
+
+
 kubectl config set-cluster kubernetes \
   --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
   --embed-certs=true \
