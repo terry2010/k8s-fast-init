@@ -66,6 +66,7 @@ chmod +x cfssl_linux-amd64 cfssljson_linux-amd64 cfssl-certinfo_linux-amd64
 mv cfssl_linux-amd64 /usr/local/bin/cfssl
 mv cfssljson_linux-amd64 /usr/local/bin/cfssljson
 mv cfssl-certinfo_linux-amd64 /usr/bin/cfssl-certinfo
+
 ```
 
 
@@ -78,6 +79,7 @@ cd /k8s/etcd/ssl/
 ```
 
 ## etcd.step.1
+*以下操作在etcd01服务器执行*
 ### etcd 证书生成
 ##### etcd ca配置
 ```
@@ -215,7 +217,7 @@ ETCD_LISTEN_CLIENT_URLS="https://192.168.50.10:2379,http://127.0.0.1:2379"
 #[Clustering]
 ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.50.10:2380"
 ETCD_ADVERTISE_CLIENT_URLS="https://192.168.50.10:2379"
-ETCD_INITIAL_CLUSTER="etcd01=https://192.168.50.10:2380,etcd02=https://192.168.50.21:2380,etcd03=https://192.168.50.21:2380"
+ETCD_INITIAL_CLUSTER="etcd01=https://192.168.50.10:2380,etcd02=https://192.168.50.21:2380,etcd03=https://192.168.50.22:2380"
 ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
 ETCD_INITIAL_CLUSTER_STATE="new"
 
@@ -256,15 +258,16 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 ```
 
-配置服务，但此时不启动etcd01
+配置服务，但此时启动etcd01, 会因为etcd02和etcd03没有启动出现启动失败的报错。 等三台服务器都配置完之后，使用文中命令检查服务状态， 如果还是异常状态，则可以再启动一次。
 ```
 systemctl daemon-reload
 systemctl enable etcd
+systemctl start etcd
 ```
 
 
 ## etcd.step.3
-
+*以下操作在etcd02服务器执行*
 #### etcd-node-02 安装
 基础路径创建
 ```
@@ -308,7 +311,7 @@ ETCD_LISTEN_CLIENT_URLS="https://192.168.50.21:2379,http://127.0.0.1:2379"
 #[Clustering]
 ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.50.21:2380"
 ETCD_ADVERTISE_CLIENT_URLS="https://192.168.50.21:2379"
-ETCD_INITIAL_CLUSTER="etcd01=https://192.168.50.10:2380,etcd02=https://192.168.50.21:2380,etcd03=https://192.168.50.21:2380"
+ETCD_INITIAL_CLUSTER="etcd01=https://192.168.50.10:2380,etcd02=https://192.168.50.21:2380,etcd03=https://192.168.50.22:2380"
 ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
 ETCD_INITIAL_CLUSTER_STATE="new"
 
@@ -356,3 +359,118 @@ systemctl daemon-reload
 systemctl enable etcd
 systemctl start etcd
 ```
+
+
+## etcd.step.4
+*以下操作在etcd03服务器执行*
+#### etcd-node-03 安装
+基础路径创建
+```
+mkdir -p /k8s/etcd/{bin,cfg,ssl}
+```
+拷贝证书
+```
+cd /k8s/etcd/ssl/
+scp 192.168.50.10:$PWD/*.pem $PWD
+```
+执行结果
+```
+[root@k8s-node-1 ssl]# scp  192.168.50.10:$PWD/*.pem $PWD
+root@192.168.50.10's password: 
+ca-key.pem                                                                                                                                 100% 1679   509.3KB/s   00:00    
+ca.pem                                                                                                                                     100% 1265   670.3KB/s   00:00    
+server-key.pem                                                                                                                             100% 1679   959.2KB/s   00:00    
+server.pem                     
+```
+
+解压缩
+
+```
+tar -xvf etcd-v3.3.10-linux-amd64.tar.gz
+cd etcd-v3.3.10-linux-amd64/
+cp etcd etcdctl /k8s/etcd/bin/
+```
+配置etcd主文件
+
+```
+vim /k8s/etcd/cfg/etcd.conf  
+```
+etcd.conf  文件内容
+``` 
+#[Member]
+ETCD_NAME="etcd03"
+ETCD_DATA_DIR="/data1/etcd"
+ETCD_LISTEN_PEER_URLS="https://192.168.50.22:2380"
+ETCD_LISTEN_CLIENT_URLS="https://192.168.50.22:2379,http://127.0.0.1:2379"
+ 
+#[Clustering]
+ETCD_INITIAL_ADVERTISE_PEER_URLS="https://192.168.50.22:2380"
+ETCD_ADVERTISE_CLIENT_URLS="https://192.168.50.22:2379"
+ETCD_INITIAL_CLUSTER="etcd01=https://192.168.50.10:2380,etcd02=https://192.168.50.21:2380,etcd03=https://192.168.50.22:2380"
+ETCD_INITIAL_CLUSTER_TOKEN="etcd-cluster"
+ETCD_INITIAL_CLUSTER_STATE="new"
+
+#[Security]
+ETCD_CERT_FILE="/k8s/etcd/ssl/server.pem"
+ETCD_KEY_FILE="/k8s/etcd/ssl/server-key.pem"
+ETCD_TRUSTED_CA_FILE="/k8s/etcd/ssl/ca.pem"
+ETCD_CLIENT_CERT_AUTH="true"
+ETCD_PEER_CERT_FILE="/k8s/etcd/ssl/server.pem"
+ETCD_PEER_KEY_FILE="/k8s/etcd/ssl/server-key.pem"
+ETCD_PEER_TRUSTED_CA_FILE="/k8s/etcd/ssl/ca.pem"
+ETCD_PEER_CLIENT_CERT_AUTH="true"
+```
+
+配置etcd启动文件
+
+```
+mkdir -p /data1/etcd
+vim /usr/lib/systemd/system/etcd.service
+```
+文件内容
+```
+[Unit]
+Description=Etcd Server
+After=network.target
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+WorkingDirectory=/data1/etcd/
+EnvironmentFile=-/k8s/etcd/cfg/etcd.conf
+# set GOMAXPROCS to number of processors
+ExecStart=/bin/bash -c "GOMAXPROCS=$(nproc) /k8s/etcd/bin/etcd --name=\"${ETCD_NAME}\" --data-dir=\"${ETCD_DATA_DIR}\" --listen-client-urls=\"${ETCD_LISTEN_CLIENT_URLS}\" --listen-peer-urls=\"${ETCD_LISTEN_PEER_URLS}\" --advertise-client-urls=\"${ETCD_ADVERTISE_CLIENT_URLS}\" --initial-cluster-token=\"${ETCD_INITIAL_CLUSTER_TOKEN}\" --initial-cluster=\"${ETCD_INITIAL_CLUSTER}\" --initial-cluster-state=\"${ETCD_INITIAL_CLUSTER_STATE}\" --cert-file=\"${ETCD_CERT_FILE}\" --key-file=\"${ETCD_KEY_FILE}\" --trusted-ca-file=\"${ETCD_TRUSTED_CA_FILE}\" --client-cert-auth=\"${ETCD_CLIENT_CERT_AUTH}\" --peer-cert-file=\"${ETCD_PEER_CERT_FILE}\" --peer-key-file=\"${ETCD_PEER_KEY_FILE}\" --peer-trusted-ca-file=\"${ETCD_PEER_TRUSTED_CA_FILE}\" --peer-client-cert-auth=\"${ETCD_PEER_CLIENT_CERT_AUTH}\""
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+```
+
+配置服务，启动etcd03 ,
+    注意： 没开放端口或者没关闭防火墙会导致启动失败
+```
+systemctl daemon-reload
+systemctl enable etcd
+systemctl start etcd
+```
+
+## etcd.step.5
+*以下操作可以在任何一台启动过etcd的服务器执行*
+```
+ /k8s/etcd/bin/etcdctl --ca-file=/k8s/etcd/ssl/ca.pem --cert-file=/k8s/etcd/ssl/server.pem --key-file=/k8s/etcd/ssl/server-key.pem --endpoints="https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379" cluster-health
+```
+执行结果
+```
+[root@k8s-node-2 etcd-v3.3.10-linux-amd64]# /k8s/etcd/bin/etcdctl --ca-file=/k8s/etcd/ssl/ca.pem --cert-file=/k8s/etcd/ssl/server.pem --key-file=/k8s/etcd/ssl/server-key.pem --endpoints="https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379" cluster-health
+member 48aebc8897d84757 is healthy: got healthy result from https://192.168.50.10:2379
+member 6b85f157810fe4ab is healthy: got healthy result from https://192.168.50.21:2379
+member 834444e7d46c33e4 is healthy: got healthy result from https://192.168.50.22:2379
+cluster is healthy
+```
+
+## kubernetes 安装
+
+### 证书生成
+#### 使用cfssl 生成证书， 安装方式参见etcd 安装开始处
