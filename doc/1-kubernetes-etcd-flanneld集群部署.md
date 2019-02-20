@@ -457,7 +457,7 @@ systemctl start etcd
 ```
 
 ## etcd.step.5
-*以下操作可以在任何一台启动过etcd的服务器执行*
+> 以下操作可以在任何一台启动过etcd的服务器执行
 ```
  /k8s/etcd/bin/etcdctl --ca-file=/k8s/etcd/ssl/ca.pem --cert-file=/k8s/etcd/ssl/server.pem --key-file=/k8s/etcd/ssl/server-key.pem --endpoints="https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379" cluster-health
 ```
@@ -470,7 +470,516 @@ member 834444e7d46c33e4 is healthy: got healthy result from https://192.168.50.2
 cluster is healthy
 ```
 
+
 ## kubernetes 安装
 
+### 基础路径创建
+```
+mkdir -p /k8s/kubernetes/{bin,cfg,ssl} 
+cd /k8s/kubernetes/ssl/
+```
 ### 证书生成
-#### 使用cfssl 生成证书， 安装方式参见etcd 安装开始处
+> 使用cfssl 生成证书， 安装方式参见etcd 安装开始处
+> 以下操作在 k8s-master 上执行，且假定cfssl在k8s-master 已经安装完成.
+###
+## k8s.step.1
+### 生成kubernets证书与私钥
+
+#### 制作kubernetes ca证书
+```
+cd /k8s/kubernetes/ssl
+```
+```
+cat << EOF | tee ca-config.json
+{
+  "signing": {
+    "default": {
+      "expiry": "87600h"
+    },
+    "profiles": {
+      "kubernetes": {
+         "expiry": "87600h",
+         "usages": [
+            "signing",
+            "key encipherment",
+            "server auth",
+            "client auth"
+        ]
+      }
+    }
+  }
+}
+EOF
+```
+ 
+```
+cat << EOF | tee ca-csr.json
+{
+    "CN": "kubernetes",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "Beijing",
+            "ST": "Beijing",
+            "O": "k8s",
+            "OU": "System"
+        }
+    ]
+}
+EOF
+```
+
+执行以下命令
+```
+cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
+
+```
+执行结果
+```
+[root@k8s-master ssl]# cfssl gencert -initca ca-csr.json | cfssljson -bare ca -
+2019/02/12 12:00:43 [INFO] generating a new CA key and certificate from CSR
+2019/02/12 12:00:43 [INFO] generate received request
+2019/02/12 12:00:43 [INFO] received CSR
+2019/02/12 12:00:43 [INFO] generating key: rsa-2048
+2019/02/12 12:00:44 [INFO] encoded CSR
+2019/02/12 12:00:44 [INFO] signed certificate with serial number 193610323705675526688752988224199514176925987003
+[root@k8s-master ssl]# ls
+ca-config.json  ca.csr  ca-csr.json  ca-key.pem  ca.pem
+```
+
+
+#### 制作apiserver证书
+
+```
+cat << EOF | tee server-csr.json
+{
+    "CN": "kubernetes",
+    "hosts": [
+      "192.168.50.1",
+      "127.0.0.1",
+      "192.168.50.10",
+      "192.168.50.21",
+      "192.168.50.22",
+      "kubernetes",
+      "kubernetes.default",
+      "kubernetes.default.svc",
+      "kubernetes.default.svc.cluster",
+      "kubernetes.default.svc.cluster.local"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "CN",
+            "L": "Beijing",
+            "ST": "Beijing",
+            "O": "k8s",
+            "OU": "System"
+        }
+    ]
+}
+EOF
+```
+
+执行命令
+```
+ cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes server-csr.json | cfssljson -bare server
+ ```
+ 输出结果
+ ```
+ [root@k8s-master ssl]# cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes server-csr.json | cfssljson -bare server
+2019/02/12 12:07:29 [INFO] generate received request
+2019/02/12 12:07:29 [INFO] received CSR
+2019/02/12 12:07:29 [INFO] generating key: rsa-2048
+2019/02/12 12:07:29 [INFO] encoded CSR
+2019/02/12 12:07:29 [INFO] signed certificate with serial number 700810050038865385373338867239054062888152574206
+2019/02/12 12:07:29 [WARNING] This certificate lacks a "hosts" field. This makes it unsuitable for
+websites. For more information see the Baseline Requirements for the Issuance and Management
+of Publicly-Trusted Certificates, v.1.1.6, from the CA/Browser Forum (https://cabforum.org);
+specifically, section 10.2.3 ("Information Requirements").
+[root@k8s-master ssl]# ls
+ca-config.json  ca.csr  ca-csr.json  ca-key.pem  ca.pem  server.csr  server-csr.json  server-key.pem  server.pem
+ ```
+
+#### 制作kube-proxy证书
+```
+cat << EOF | tee kube-proxy-csr.json
+{
+  "CN": "system:kube-proxy",
+  "hosts": [],
+  "key": {
+    "algo": "rsa",
+    "size": 2048
+  },
+  "names": [
+    {
+      "C": "CN",
+      "L": "Beijing",
+      "ST": "Beijing",
+      "O": "k8s",
+      "OU": "System"
+    }
+  ]
+}
+EOF
+```
+
+执行命令
+```
+cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-proxy-csr.json | cfssljson -bare kube-proxy
+
+```
+输出结果
+```
+[root@k8s-master ssl]# cfssl gencert -ca=ca.pem -ca-key=ca-key.pem -config=ca-config.json -profile=kubernetes kube-proxy-csr.json | cfssljson -bare kube-proxy
+2019/02/12 12:09:50 [INFO] generate received request
+2019/02/12 12:09:50 [INFO] received CSR
+2019/02/12 12:09:50 [INFO] generating key: rsa-2048
+2019/02/12 12:09:50 [INFO] encoded CSR
+2019/02/12 12:09:50 [INFO] signed certificate with serial number 481991947134927061933629246120948488949754418059
+2019/02/12 12:09:50 [WARNING] This certificate lacks a "hosts" field. This makes it unsuitable for
+websites. For more information see the Baseline Requirements for the Issuance and Management
+of Publicly-Trusted Certificates, v.1.1.6, from the CA/Browser Forum (https://cabforum.org);
+specifically, section 10.2.3 ("Information Requirements").
+[root@k8s-master ssl]# ls
+ca-config.json  ca.csr  ca-csr.json  ca-key.pem  ca.pem  kube-proxy.csr  kube-proxy-csr.json  kube-proxy-key.pem  kube-proxy.pem  server.csr  server-csr.json  server-key.pem  server.pem
+```
+
+## K8S.STEP.2
+### 部署kubernetes server
+
+> 以下还在 k8s-master上执行
+
+#### 解压缩文件
+```
+tar -zxvf kubernetes-server-linux-amd64.tar.gz 
+cd kubernetes/server/bin/
+cp kube-scheduler kube-apiserver kube-controller-manager kubectl /k8s/kubernetes/bin/
+```
+
+#### 部署kube-apiserver组件 创建TLS Bootstrapping Token
+> 生成随机字符串， 之后命令中的随机字符串都需要用服务器生成的随机字符串替换
+
+执行命令
+```
+head -c 16 /dev/urandom | od -An -t x | tr -d ' '
+```
+输出结果
+```
+[root@k8s-master ~]#  head -c 16 /dev/urandom | od -An -t x | tr -d ' '
+f5675ffd8d3d03ef5a6beec27be8dd80
+```
+执行命令
+```
+vim /k8s/kubernetes/cfg/token.csv
+```
+输入内容
+> 记得将下文的 f5675ffd8d3d03ef5a6beec27be8dd80 替换为服务器生成的随机字符串
+```
+f5675ffd8d3d03ef5a6beec27be8dd80,kubelet-bootstrap,10001,"system:kubelet-bootstrap"
+```
+
+#### 创建Apiserver配置文件
+```
+vim /k8s/kubernetes/cfg/kube-apiserver 
+```
+输入内容
+```
+KUBE_APISERVER_OPTS="--logtostderr=true \
+--v=4 \
+--etcd-servers=https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379 \
+--bind-address=192.168.50.10 \
+--secure-port=6443 \
+--advertise-address=192.168.50.10 \
+--allow-privileged=true \
+--service-cluster-ip-range=192.168.50.0/24 \
+--enable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota,NodeRestriction \
+--authorization-mode=RBAC,Node \
+--enable-bootstrap-token-auth \
+--token-auth-file=/k8s/kubernetes/cfg/token.csv \
+--service-node-port-range=30000-50000 \
+--tls-cert-file=/k8s/kubernetes/ssl/server.pem  \
+--tls-private-key-file=/k8s/kubernetes/ssl/server-key.pem \
+--client-ca-file=/k8s/kubernetes/ssl/ca.pem \
+--service-account-key-file=/k8s/kubernetes/ssl/ca-key.pem \
+--etcd-cafile=/k8s/etcd/ssl/ca.pem \
+--etcd-certfile=/k8s/etcd/ssl/server.pem \
+--etcd-keyfile=/k8s/etcd/ssl/server-key.pem"
+```
+
+#### 创建apiserver systemd文件
+执行命令
+```
+vim /usr/lib/systemd/system/kube-apiserver.service 
+
+```
+输入内容
+```
+[Unit]
+Description=Kubernetes API Server
+Documentation=https://github.com/kubernetes/kubernetes
+ 
+[Service]
+EnvironmentFile=-/k8s/kubernetes/cfg/kube-apiserver
+ExecStart=/k8s/kubernetes/bin/kube-apiserver $KUBE_APISERVER_OPTS
+Restart=on-failure
+ 
+[Install]
+WantedBy=multi-user.target
+```
+
+启动服务
+```
+systemctl daemon-reload
+systemctl enable kube-apiserver
+systemctl start kube-apiserver
+```
+
+检查服务启动状态
+
+```
+[root@k8s-master ssl]# systemctl status kube-apiserver
+● kube-apiserver.service - Kubernetes API Server
+   Loaded: loaded (/usr/lib/systemd/system/kube-apiserver.service; enabled; vendor preset: disabled)
+   Active: active (running) since Tue 2019-02-12 12:30:46 EST; 15s ago
+     Docs: https://github.com/kubernetes/kubernetes
+ Main PID: 21922 (kube-apiserver)
+    Tasks: 10
+   Memory: 273.3M
+   CGroup: /system.slice/kube-apiserver.service
+           └─21922 /k8s/kubernetes/bin/kube-apiserver --logtostderr=true --v=4 --etcd-servers=https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379 --bind-address=192.168.50.10 --secure-port=6443 --advert...
+
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.530350   21922 wrap.go:47] POST /apis/rbac.authorization.k8s.io/v1/namespaces/kube-system/rolebindings: (3.798677ms) 201 [kube-apiserver/v1.13.1 (linu...168.50.10:35834]
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.530638   21922 storage_rbac.go:276] created rolebinding.rbac.authorization.k8s.io/system:controller:cloud-provider in kube-system
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.549200   21922 wrap.go:47] GET /apis/rbac.authorization.k8s.io/v1/namespaces/kube-system/rolebindings/system:controller:token-cleaner: (2.588941ms) 40...168.50.10:35834]
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.552475   21922 wrap.go:47] GET /api/v1/namespaces/kube-system: (2.74916ms) 200 [kube-apiserver/v1.13.1 (linux/amd64) kubernetes/eec55b9 192.168.50.10:35834]
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.570315   21922 wrap.go:47] POST /apis/rbac.authorization.k8s.io/v1/namespaces/kube-system/rolebindings: (3.728849ms) 201 [kube-apiserver/v1.13.1 (linu...168.50.10:35834]
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.570491   21922 storage_rbac.go:276] created rolebinding.rbac.authorization.k8s.io/system:controller:token-cleaner in kube-system
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.589798   21922 wrap.go:47] GET /apis/rbac.authorization.k8s.io/v1/namespaces/kube-public/rolebindings/system:controller:bootstrap-signer: (2.653749ms)...168.50.10:35834]
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.592625   21922 wrap.go:47] GET /api/v1/namespaces/kube-public: (2.443401ms) 200 [kube-apiserver/v1.13.1 (linux/amd64) kubernetes/eec55b9 192.168.50.10:35834]
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.610995   21922 wrap.go:47] POST /apis/rbac.authorization.k8s.io/v1/namespaces/kube-public/rolebindings: (3.709393ms) 201 [kube-apiserver/v1.13.1 (linu...168.50.10:35834]
+Feb 12 12:31:00 k8s-master kube-apiserver[21922]: I0212 12:31:00.611263   21922 storage_rbac.go:276] created rolebinding.rbac.authorization.k8s.io/system:controller:bootstrap-signer in kube-public
+Hint: Some lines were ellipsized, use -l to show in full.
+[root@k8s-master ssl]# ps -ef |grep kube-apiserver
+root      21922      1 47 12:30 ?        00:00:12 /k8s/kubernetes/bin/kube-apiserver --logtostderr=true --v=4 --etcd-servers=https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379 --bind-address=192.168.50.10 --secure-port=6443 --advertise-address=192.168.50.10 --allow-privileged=true --service-cluster-ip-range=192.168.50.0/24 --enable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,ResourceQuota,NodeRestriction --authorization-mode=RBAC,Node --enable-bootstrap-token-auth --token-auth-file=/k8s/kubernetes/cfg/token.csv --service-node-port-range=30000-50000 --tls-cert-file=/k8s/kubernetes/ssl/server.pem --tls-private-key-file=/k8s/kubernetes/ssl/server-key.pem --client-ca-file=/k8s/kubernetes/ssl/ca.pem --service-account-key-file=/k8s/kubernetes/ssl/ca-key.pem --etcd-cafile=/k8s/etcd/ssl/ca.pem --etcd-certfile=/k8s/etcd/ssl/server.pem --etcd-keyfile=/k8s/etcd/ssl/server-key.pem
+root      21934  21665  0 12:31 pts/3    00:00:00 grep --color=auto kube-apiserver
+[root@k8s-master ssl]# netstat -tulpn |grep kube-apiserve
+tcp        0      0 192.168.50.10:6443      0.0.0.0:*               LISTEN      21922/kube-apiserve 
+tcp        0      0 127.0.0.1:8080          0.0.0.0:*               LISTEN      21922/kube-apiserve 
+```
+
+
+### 部署kube-scheduler组件 
+#### 创建kube-scheduler配置文件
+
+执行命令
+```
+vim  /k8s/kubernetes/cfg/kube-scheduler 
+```
+输入内容
+```
+KUBE_SCHEDULER_OPTS="--logtostderr=true --v=4 --master=127.0.0.1:8080 --leader-elect"
+
+```
+>参数备注： 
+>--address：在 127.0.0.1:10251 端口接收 http /metrics 请求；kube-scheduler 目前还不支持接收 https 请求； 
+>--kubeconfig：指定 kubeconfig 文件路径，kube-scheduler 使用它连接和验证 kube-apiserver； 
+>--leader-elect=true：集群运行模式，启用选举功能；被选为 leader 的节点负责处理工作，其它节点为阻塞状态；
+
+创建kube-scheduler systemd文件
+```
+vim /usr/lib/systemd/system/kube-scheduler.service 
+
+```
+
+输入内容
+```
+[Unit]
+Description=Kubernetes Scheduler
+Documentation=https://github.com/kubernetes/kubernetes
+ 
+[Service]
+EnvironmentFile=-/k8s/kubernetes/cfg/kube-scheduler
+ExecStart=/k8s/kubernetes/bin/kube-scheduler $KUBE_SCHEDULER_OPTS
+Restart=on-failure
+ 
+[Install]
+WantedBy=multi-user.target
+```
+
+启动服务
+
+```
+systemctl daemon-reload
+systemctl enable kube-scheduler.service 
+systemctl start kube-scheduler.service
+```
+
+检查服务状态
+```
+[root@k8s-master ssl]# systemctl status kube-scheduler.service
+● kube-scheduler.service - Kubernetes Scheduler
+   Loaded: loaded (/usr/lib/systemd/system/kube-scheduler.service; enabled; vendor preset: disabled)
+   Active: active (running) since Tue 2019-02-12 12:36:20 EST; 19s ago
+     Docs: https://github.com/kubernetes/kubernetes
+ Main PID: 21983 (kube-scheduler)
+    Tasks: 10
+   Memory: 10.8M
+   CGroup: /system.slice/kube-scheduler.service
+           └─21983 /k8s/kubernetes/bin/kube-scheduler --logtostderr=true --v=4 --master=127.0.0.1:8080 --leader-elect
+
+Feb 12 12:36:21 k8s-master kube-scheduler[21983]: I0212 12:36:21.917261   21983 shared_informer.go:123] caches populated
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.017849   21983 shared_informer.go:123] caches populated
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.118056   21983 shared_informer.go:123] caches populated
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.218653   21983 shared_informer.go:123] caches populated
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.218718   21983 controller_utils.go:1027] Waiting for caches to sync for scheduler controller
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.319354   21983 shared_informer.go:123] caches populated
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.319391   21983 controller_utils.go:1034] Caches are synced for scheduler controller
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.319440   21983 leaderelection.go:205] attempting to acquire leader lease  kube-system/kube-scheduler...
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.327059   21983 leaderelection.go:214] successfully acquired lease kube-system/kube-scheduler
+Feb 12 12:36:22 k8s-master kube-scheduler[21983]: I0212 12:36:22.428706   21983 shared_informer.go:123] caches populated
+```
+
+### 部署kube-controller-manager组件 
+#### 创建kube-controller-manager配置文件
+执行命令
+```
+vim /k8s/kubernetes/cfg/kube-controller-manager
+
+```
+输入内容
+```
+KUBE_CONTROLLER_MANAGER_OPTS="--logtostderr=true \
+--v=4 \
+--master=127.0.0.1:8080 \
+--leader-elect=true \
+--address=127.0.0.1 \
+--service-cluster-ip-range=192.168.50.0/24 \
+--cluster-name=kubernetes \
+--cluster-signing-cert-file=/k8s/kubernetes/ssl/ca.pem \
+--cluster-signing-key-file=/k8s/kubernetes/ssl/ca-key.pem  \
+--root-ca-file=/k8s/kubernetes/ssl/ca.pem \
+--service-account-private-key-file=/k8s/kubernetes/ssl/ca-key.pem"
+```
+
+创建kube-controller-manager systemd文件
+
+执行命令
+```
+vim /usr/lib/systemd/system/kube-controller-manager.service 
+
+```
+
+输入内容
+```
+[Unit]
+Description=Kubernetes Controller Manager
+Documentation=https://github.com/kubernetes/kubernetes
+ 
+[Service]
+EnvironmentFile=-/k8s/kubernetes/cfg/kube-controller-manager
+ExecStart=/k8s/kubernetes/bin/kube-controller-manager $KUBE_CONTROLLER_MANAGER_OPTS
+Restart=on-failure
+ 
+[Install]
+WantedBy=multi-user.target
+```
+
+启动服务
+```
+systemctl daemon-reload
+systemctl enable kube-controller-manager
+systemctl start kube-controller-manager
+```
+
+检查服务状态
+```
+[root@k8s-master ssl]# systemctl status kube-controller-manager
+● kube-controller-manager.service - Kubernetes Controller Manager
+   Loaded: loaded (/usr/lib/systemd/system/kube-controller-manager.service; enabled; vendor preset: disabled)
+   Active: active (running) since Tue 2019-02-12 12:41:26 EST; 16s ago
+     Docs: https://github.com/kubernetes/kubernetes
+ Main PID: 22040 (kube-controller)
+    Tasks: 8
+   Memory: 44.4M
+   CGroup: /system.slice/kube-controller-manager.service
+           └─22040 /k8s/kubernetes/bin/kube-controller-manager --logtostderr=true --v=4 --master=127.0.0.1:8080 --leader-elect=true --address=127.0.0.1 --service-cluster-ip-range=192.168.50.0/24 --cluster-name=kubernetes --cluster-...
+
+Feb 12 12:41:29 k8s-master kube-controller-manager[22040]: E0212 12:41:29.554869   22040 resource_quota_controller.go:437] failed to sync resource monitors: couldn't start monitor for resource "extensions/v1beta1, Re...etworkpolicies"
+Feb 12 12:41:29 k8s-master kube-controller-manager[22040]: I0212 12:41:29.621976   22040 shared_informer.go:123] caches populated
+Feb 12 12:41:29 k8s-master kube-controller-manager[22040]: I0212 12:41:29.622030   22040 controller_utils.go:1034] Caches are synced for garbage collector controller
+Feb 12 12:41:29 k8s-master kube-controller-manager[22040]: I0212 12:41:29.622039   22040 garbagecollector.go:245] synced garbage collector
+Feb 12 12:41:29 k8s-master kube-controller-manager[22040]: I0212 12:41:29.652471   22040 shared_informer.go:123] caches populated
+Feb 12 12:41:29 k8s-master kube-controller-manager[22040]: I0212 12:41:29.652743   22040 controller_utils.go:1034] Caches are synced for garbage collector controller
+Feb 12 12:41:29 k8s-master kube-controller-manager[22040]: I0212 12:41:29.652759   22040 garbagecollector.go:142] Garbage collector: all resource monitors have synced. Proceeding to collect garbage
+Feb 12 12:41:38 k8s-master kube-controller-manager[22040]: I0212 12:41:38.099236   22040 cronjob_controller.go:111] Found 0 jobs
+Feb 12 12:41:38 k8s-master kube-controller-manager[22040]: I0212 12:41:38.101947   22040 cronjob_controller.go:119] Found 0 cronjobs
+Feb 12 12:41:38 k8s-master kube-controller-manager[22040]: I0212 12:41:38.101963   22040 cronjob_controller.go:122] Found 0 groups
+Hint: Some lines were ellipsized, use -l to show in full.
+```
+
+### 验证kubeserver服务
+
+设置环境变量
+```
+vim ~/.bashrc
+```
+在文件结尾加入
+```
+export PATH=/k8s/kubernetes/bin:$PATH
+```
+执行
+```
+source ~/.bashrc
+```
+
+### 最后检查master服务状态
+
+执行命令
+```
+kubectl get cs,nodes
+
+```
+执行结果
+```
+[root@k8s-master ssl]# kubectl get cs,nodes
+NAME                                 STATUS    MESSAGE             ERROR
+componentstatus/scheduler            Healthy   ok                  
+componentstatus/controller-manager   Healthy   ok                  
+componentstatus/etcd-0               Healthy   {"health":"true"}   
+componentstatus/etcd-2               Healthy   {"health":"true"}   
+componentstatus/etcd-1               Healthy   {"health":"true"}   
+```
+
+## kubernetes Node 部署
+> kubernetes work 节点运行如下组件：  
+> docker  
+> kubelet  
+> kube-proxy  
+> flannel  
+> 
+>系统环境  
+>CentOS Linux release 7.4.1708 (Core)  
+>Docker版本  
+>Server Version: 18.09.0  
+>Cgroup Driver: cgroupfs
+
+### Docker环境安装
+
+```
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum list docker-ce --showduplicates | sort -r
+yum install docker-ce -y
+systemctl start docker && systemctl enable docker
+```
+或者参考：
+https://github.com/terry2010/centos7-fast-init/blob/master/docker/install.sh
+
+[利用aliyun源在centos7快速安装docker  ](https://github.com/terry2010/centos7-fast-init/blob/master/docker/install.sh)
+
