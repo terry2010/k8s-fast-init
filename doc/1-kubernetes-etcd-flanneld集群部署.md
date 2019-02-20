@@ -23,11 +23,14 @@ https://github.com/coreos/flannel/releases/download/v0.11.0/flannel-v0.11.0-linu
 ```
 
 ### 服务器角色
-```
-k8s-master1	192.168.50.10	k8s-master	etcd、kube-apiserver、kube-controller-manager、kube-scheduler
-k8s-node1	192.168.50.21	k8s-node	etcd、kubelet、docker、kube_proxy
-k8s-node2	192.168.50.22	k8s-node	etcd、kubelet、docker、kube_proxy
-```
+
+
+ 角色         |ip    |主机名|服务列表
+ -------------------|-|-|-
+k8s-master1|	192.168.50.10|	k8s-master|	etcd、kube-apiserver、kube-controller-manager、kube-scheduler
+k8s-node1   |	192.168.50.21|	k8s-node|	etcd、kubelet、docker、kube_proxy
+k8s-node2   |	192.168.50.22|	k8s-node|	etcd、kubelet、docker、kube_proxy
+ 
 
 ### 防火墙设置
 
@@ -1231,7 +1234,7 @@ Feb 12 14:15:14 k8s-node-1 kubelet[21681]: I0212 14:15:14.376419   21681 bootstr
 Feb 12 14:15:16 k8s-node-1 kubelet[21681]: I0212 14:15:16.647004   21681 bootstrap.go:239] Failed to connect to apiserver: the server has asked for the client to provide credentials
 ```
 
-http://blog.51cto.com/ylw6006/2104692
+
 ```
 kubectl config set-cluster kubernetes \
   --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
