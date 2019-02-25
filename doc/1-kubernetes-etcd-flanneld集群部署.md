@@ -1,4 +1,5 @@
 
+
 # kubernetes+etcd+flanneld 集群部署
 ### 文档涉及版本
     kubernetes 1.13.1
@@ -191,6 +192,7 @@ specifically, section 10.2.3 ("Information Requirements").
 ## etcd.step.2
 
 #### etcd-node-01 安装
+此步操作在etcd01 中执行（本例为master）
 
 基础路径创建
 ```
@@ -475,6 +477,8 @@ cluster is healthy
 
 
 ## kubernetes 安装
+
+>以下操作在master执行
 
 ### 基础路径创建
 ```
@@ -1240,18 +1244,21 @@ Feb 12 14:15:16 k8s-node-1 kubelet[21681]: I0212 14:15:16.647004   21681 bootstr
 
 ```
 http://blog.51cto.com/ylw6006/2104692
+```
 
-
+ 
+```
 kubectl config set-cluster kubernetes \
   --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
   --embed-certs=true \
-  --server=https://192.168.50.10:6443 \
+  --server=https://192.168.50.10:6443\
   --kubeconfig=bootstrap.kubeconfig
-```
+``` 
+ 
 
 ```
 kubectl config set-credentials kubelet-bootstrap \
-  --token=3e6916ba861192f279c67d827952ea30 \
+  --token=f5675ffd8d3d03ef5a6beec27be8dd80\
   --kubeconfig=bootstrap.kubeconfig
 ```
 
@@ -1260,4 +1267,19 @@ kubectl config set-credentials kubelet-bootstrap \
   --cluster=kubernetes \
   --user=kubelet-bootstrap \
   --kubeconfig=bootstrap.kubeconfig
+```
+```
+ systemctl daemon-reload
+ systemctl start kubelet
+ systemctl status kubelet
+```
+
+
+
+在master上对node节点的csr进行授权
+
+```
+# kubectl get nodes  
+# kubectl get csr 
+# kubectl certificate approve node-csr-s6NbHbQp8M3fxKbRTO9AW6_L6KNi89gQdGByxm6sGn8 
 ```
