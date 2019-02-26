@@ -1042,6 +1042,9 @@ server.pem
 
 #### 生成创建kubelet bootstrap kubeconfig脚本， 并创建 kubeconfig文件
 
+
+
+
 执行命令
 ```
 vim /k8s/kubernetes/cfg/environment.sh
@@ -1052,7 +1055,8 @@ vim /k8s/kubernetes/cfg/environment.sh
 ```
 #!/bin/bash
 #创建kubelet bootstrapping kubeconfig 
-BOOTSTRAP_TOKEN=f5675ffd8d3d03ef5a6beec27be8dd80（修改为之前在master用urandom生成的随机字符串）
+#BOOTSTRAP_TOKEN需要修改为之前在master用urandom生成的随机字符串
+BOOTSTRAP_TOKEN=f5675ffd8d3d03ef5a6beec27be8dd80
 KUBE_APISERVER="https://192.168.50.10:6443"
 #设置集群参数
 kubectl config set-cluster kubernetes \
@@ -1078,7 +1082,7 @@ kubectl config use-context default --kubeconfig=bootstrap.kubeconfig
 #----------------------
  
 # 创建kube-proxy kubeconfig文件
- 
+
 kubectl config set-cluster kubernetes \
   --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
   --embed-certs=true \
@@ -1164,7 +1168,6 @@ KUBELET_OPTS="--logtostderr=true \
 执行命令
 ```
 vim /usr/lib/systemd/system/kubelet.service 
-
 ```
 输入内容
 ```
@@ -1209,7 +1212,7 @@ kubectl create clusterrolebinding kubelet-bootstrap \
 >     --user=kubelet-bootstrap
 clusterrolebinding.rbac.authorization.k8s.io/kubelet-bootstrap created
 ```
-
+回到node1 
 启动服务
 ```
 systemctl daemon-reload
@@ -1283,3 +1286,546 @@ kubectl config set-credentials kubelet-bootstrap \
 # kubectl get csr 
 # kubectl certificate approve node-csr-s6NbHbQp8M3fxKbRTO9AW6_L6KNi89gQdGByxm6sGn8 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+ cd 
+   49  cd code/k8s/
+   50  tar zxvf kubernetes-node-linux-amd64.tar.gz
+   51  cd kubernetes/node/bin/
+   52  cp kube-proxy kubelet kubectl /k8s/kubernetes/bin/
+   53  vim ~/.bashrc
+   54  source ~/.bashrc
+   55  cd /k8s/kubernetes/ssl
+   56  scp 192.168.50.10:$PWD/*.pem $PWD
+   57  vim /k8s/kubernetes/cfg/environment.sh
+   58  cd /k8s/kubernetes/cfg
+   59  sh environment.sh 
+   60  vim /k8s/kubernetes/cfg/kubelet.config
+   61  vim /k8s/kubernetes/cfg/kubelet
+   62  vim /usr/lib/systemd/system/kubelet.service 
+   63  ll /k8s/kubernetes/cfg/kubelet
+   64  systemctl status kubelet
+   65  systemctl daemon-reload
+   66  systemctl enable kubelet 
+   67  systemctl start kubelet
+   68  systemctl status kubelet
+   69  kubectl config set-cluster kubernetes   --certificate-authority=/k8s/kubernetes/ssl/ca.pem   --embed-certs=true   --server=https://192.168.50.10:1080  --kubeconfig=bootstrap.kubeconfig
+   70  kubectl config set-credentials kubelet-bootstrap   --token=f5675ffd8d3d03ef5a6beec27be8dd80  --kubeconfig=bootstrap.kubeconfig
+   71   kubectl config set-context default   --cluster=kubernetes   --user=kubelet-bootstrap   --kubeconfig=bootstrap.kubeconfig
+   72  find /k8s/ |grep bootstrap.kubeconfig
+   73  kubectl config use-context default --kubeconfig=/k8s/kubernetes/cfg/bootstrap.kubeconfig
+   74  systemctl daemon-reload
+   75  systemctl start kubelet
+   76  systemctl status kubelet
+   77  kubectl config set-cluster kubernetes   --certificate-authority=/k8s/kubernetes/ssl/ca.pem   --embed-certs=true   --server=https://192.168.50.10:6443  --kubeconfig=bootstrap.kubeconfig
+   78  kubectl config set-credentials kubelet-bootstrap   --token=f5675ffd8d3d03ef5a6beec27be8dd80  --kubeconfig=bootstrap.kubeconfig
+   79   kubectl config set-context default   --cluster=kubernetes   --user=kubelet-bootstrap   --kubeconfig=bootstrap.kubeconfig
+   80   systemctl daemon-reload
+   81   systemctl start kubelet
+   82   systemctl status kubelet
+   83  grep -R 'y1kX3ewM' /k8s/
+   84  grep -R 'y1kX3ewM' /
+   85   systemctl status kubelet
+   86  history
+
+
+
+
+
+---------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### 服务器角色
+
+
+ 角色         |ip    |主机名|服务列表
+ -------------------|-|-|-
+k8s-master1|	192.168.50.10|	k8s-master|	etcd、kube-apiserver、kube-controller-manager、kube-scheduler
+k8s-node1   |	192.168.50.21|	k8s-node|	etcd、kubelet、docker、kube_proxy
+k8s-node2   |	192.168.50.22|	k8s-node|	etcd、kubelet、docker、kube_proxy
+ 
+
+
+
+### 服务器角色
+
+
+ 角色         |ip    |主机名|服务列表
+ -------------------|-|-|-
+k8s-master1|	192.168.50.10|	k8s-master|	etcd、kube-apiserver、kube-controller-manager、kube-scheduler
+k8s-node1   |	192.168.50.21|	k8s-node|	etcd、kubelet、docker、kube_proxy
+k8s-node2   |	192.168.50.22|	k8s-node|	etcd、kubelet、docker、kube_proxy
+ ### 服务器角色
+
+
+ 角色         |ip    |主机名|服务列表
+ -------------------|-|-|-
+k8s-master1|	192.168.50.10|	k8s-master|	etcd、kube-apiserver、kube-controller-manager、kube-scheduler
+k8s-node1   |	192.168.50.21|	k8s-node|	etcd、kubelet、docker、kube_proxy
+k8s-node2   |	192.168.50.22|	k8s-node|	etcd、kubelet、docker、kube_proxy
+ ### 服务器角色
+
+
+ 角色         |ip    |主机名|服务列表
+ -------------------|-|-|-
+k8s-master1|	192.168.50.10|	k8s-master|	etcd、kube-apiserver、kube-controller-manager、kube-scheduler
+k8s-node1   |	192.168.50.21|	k8s-node|	etcd、kubelet、docker、kube_proxy
+k8s-node2   |	192.168.50.22|	k8s-node|	etcd、kubelet、docker、kube_proxy
+ 
+
+-------------------------------------------
+
+
+## kubernetes Node 部署
+> kubernetes work 节点运行如下组件：  
+> docker  
+> kubelet  
+> kube-proxy  
+> flannel  
+> 
+>系统环境  
+>CentOS Linux release 7.4.1708 (Core)  
+>Docker版本  
+>Server Version: 18.09.0  
+>Cgroup Driver: cgroupfs
+
+#### Docker环境安装
+
+```
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum list docker-ce --showduplicates | sort -r
+yum install docker-ce -y
+systemctl start docker && systemctl enable docker
+```
+或者参考：
+https://github.com/terry2010/centos7-fast-init/blob/master/docker/install.sh
+
+[利用aliyun源在centos7快速安装docker  ](https://github.com/terry2010/centos7-fast-init/blob/master/docker/install.sh)
+
+#### 基础路径创建
+```
+mkdir -p /k8s/kubernetes/{bin,cfg,ssl} 
+
+```
+
+#### 部署kubelet
+> kublet 运行在每个 worker 节点上，接收 kube-apiserver 发送的请求，管理 Pod 容器，执行交互式命令，如exec、run、logs 等; kublet 启动时自动向 kube-apiserver 注册节点信息，内置的 cadvisor 统计和监控节点的资源使用情况; 为确保安全，只开启接收 https 请求的安全端口，对请求进行认证和授权，拒绝未授权的访问(如apiserver、heapster)
+>
+##### 安装二进制文件
+```
+tar zxvf kubernetes-node-linux-amd64.tar.gz
+cd kubernetes/node/bin/
+cp kube-proxy kubelet kubectl /k8s/kubernetes/bin/
+```
+##### 设置环境变量
+```
+vim ~/.bashrc
+```
+在文件结尾加入
+```
+export PATH=/k8s/kubernetes/bin:$PATH
+```
+执行
+```
+source ~/.bashrc
+```
+
+##### 复制相关证书到node节点
+
+执行命令
+```
+cd /k8s/kubernetes/ssl
+scp 192.168.50.10:$PWD/*.pem $PWD
+```
+执行结果
+```
+[root@k8s-node-1 ssl]# scp 192.168.50.10:$PWD/*.pem $PWD
+root@192.168.50.10's password: 
+ca-key.pem                                                                                                                                                                                              100% 1675     1.5MB/s   00:00    
+ca.pem                                                                                                                                                                                                  100% 1359     1.2MB/s   00:00    
+kube-proxy-key.pem                                                                                                                                                                                      100% 1679     1.7MB/s   00:00    
+kube-proxy.pem                                                                                                                                                                                          100% 1403     1.6MB/s   00:00    
+server-key.pem                                                                                                                                                                                          100% 1679     1.9MB/s   00:00    
+server.pem                        
+```
+
+#### 生成创建kubelet bootstrap kubeconfig脚本， 并创建 kubeconfig文件
+
+进入配置文件目录
+```
+ cd /k8s/kubernetes/cfg/
+ ```
+##### 设置集群参数
+>--server=KUBE_APISERVER
+
+```
+kubectl config set-cluster kubernetes \
+  --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
+  --embed-certs=true \
+  --server=https://192.168.50.10:6443\
+  --kubeconfig=bootstrap.kubeconfig
+  ```
+  执行结果：
+  ```
+[root@k8s-master kubernetes]# kubectl config set-cluster kubernetes \
+>   --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
+>   --embed-certs=true \
+>   --server=https://192.168.50.10:6443\
+>   --kubeconfig=bootstrap.kubeconfig
+Cluster "kubernetes" set.
+  ```
+  
+##### 设置客户端认证参数
+>--token=之前在master用urandom生成的随机字符串
+```
+kubectl config set-credentials kubelet-bootstrap \
+  --token=f5675ffd8d3d03ef5a6beec27be8dd80 \
+  --kubeconfig=bootstrap.kubeconfig
+ ```
+ 执行结果
+ ```
+ [root@k8s-node-2 cfg]# kubectl config set-credentials kubelet-bootstrap \
+>   --token=f5675ffd8d3d03ef5a6beec27be8dd80 \
+>   --kubeconfig=bootstrap.kubeconfig
+User "kubelet-bootstrap" set.
+```
+
+##### 设置上下文参数
+```
+kubectl config set-context default \
+  --cluster=kubernetes \
+  --user=kubelet-bootstrap \
+  --kubeconfig=bootstrap.kubeconfig
+```
+执行结果
+ ```
+ [root@k8s-node-2 cfg]# kubectl config set-context default \
+>   --cluster=kubernetes \
+>   --user=kubelet-bootstrap \
+>   --kubeconfig=bootstrap.kubeconfig
+Context "default" created.
+ ```
+##### 设置默认上下文
+```
+kubectl config use-context default --kubeconfig=bootstrap.kubeconfig
+```
+执行结果
+```
+[root@k8s-node-2 cfg]# kubectl config use-context default --kubeconfig=bootstrap.kubeconfig
+Switched to context "default".
+```
+
+##### 创建kube-proxy kubeconfig文件
+>--server=KUBE_APISERVER
+```
+kubectl config set-cluster kubernetes \
+  --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
+  --embed-certs=true \
+  --server=https://192.168.50.10:6443 \
+  --kubeconfig=kube-proxy.kubeconfig
+ 
+kubectl config set-credentials kube-proxy \
+  --client-certificate=/k8s/kubernetes/ssl/kube-proxy.pem \
+  --client-key=/k8s/kubernetes/ssl/kube-proxy-key.pem \
+  --embed-certs=true \
+  --kubeconfig=kube-proxy.kubeconfig
+ 
+kubectl config set-context default \
+  --cluster=kubernetes \
+  --user=kube-proxy \
+  --kubeconfig=kube-proxy.kubeconfig
+ 
+kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
+```
+执行结果
+
+```
+[root@k8s-node-2 cfg]# kubectl config set-cluster kubernetes \
+>   --certificate-authority=/k8s/kubernetes/ssl/ca.pem \
+>   --embed-certs=true \
+>   --server=https://192.168.50.10:6443 \
+>   --kubeconfig=kube-proxy.kubeconfig
+ 
+kubectl config set-credentials kube-proxy \
+  --client-certificate=/k8s/kubernetes/ssl/kube-proxy.pem \
+  --client-key=/k8s/kubernetes/ssl/kube-proxy-key.pem \
+  --embed-certs=true \
+  --kubeconfig=kube-proxy.kubeconfig
+Cluster "kubernetes" set.
+[root@k8s-node-2 cfg]#  
+[root@k8s-node-2 cfg]# kubectl config set-credentials kube-proxy \
+>   --client-certificate=/k8s/kubernetes/ssl/kube-proxy.pem \
+>   --client-key=/k8s/kubernetes/ssl/kube-proxy-key.pem \
+>   --embed-certs=true \
+>   --kubeconfig=kube-proxy.kubeconfig
+ 
+kubectl config set-context default \
+User "kube-proxy" set.
+  --cluster=kubernetes \
+[root@k8s-node-2 cfg]#  
+[root@k8s-node-2 cfg]# kubectl config set-context default \
+>   --cluster=kubernetes \
+>   --user=kube-proxy \
+>   --kubeconfig=kube-proxy.kubeconfig
+ 
+kubectl config use-context default --kubeconfig=kube-proxy.kubeconfigContext "default" created.
+[root@k8s-node-2 cfg]#  
+[root@k8s-node-2 cfg]# kubectl config use-context default --kubeconfig=kube-proxy.kubeconfig
+Switched to context "default".
+[root@k8s-node-2 cfg]# ls
+```
+
+
+##### 创建kubelet参数配置模板文件
+
+执行命令
+```
+vim /k8s/kubernetes/cfg/kubelet.config
+
+```
+输入内容
+```
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+address: 192.168.50.22
+port: 10250
+readOnlyPort: 10255
+cgroupDriver: cgroupfs
+clusterDNS: ["192.168.50.10"]
+clusterDomain: cluster.local.
+failSwapOn: false
+authentication:
+  anonymous:
+    enabled: true
+```
+
+##### 创建kubelet配置文件
+
+执行命令
+```
+vim /k8s/kubernetes/cfg/kubelet
+```
+输入内容
+```
+KUBELET_OPTS="--logtostderr=true \
+--v=4 \
+--hostname-override=192.168.50.22 \
+--kubeconfig=/k8s/kubernetes/cfg/kubelet.kubeconfig \
+--bootstrap-kubeconfig=/k8s/kubernetes/cfg/bootstrap.kubeconfig \
+--config=/k8s/kubernetes/cfg/kubelet.config \
+--cert-dir=/k8s/kubernetes/ssl \
+--pod-infra-container-image=registry.cn-hangzhou.aliyuncs.com/google-containers/pause-amd64:3.0"
+```
+
+##### 创建kubelet systemd文件
+
+执行命令
+```
+vim /usr/lib/systemd/system/kubelet.service 
+```
+输入内容
+```
+[Unit]
+Description=Kubernetes Kubelet
+After=docker.service
+Requires=docker.service
+ 
+[Service]
+EnvironmentFile=/k8s/kubernetes/cfg/kubelet
+ExecStart=/k8s/kubernetes/bin/kubelet $KUBELET_OPTS
+Restart=on-failure
+KillMode=process
+ 
+[Install]
+WantedBy=multi-user.target
+```
+
+
+----------------
+如果是第一次添加节点，切换到 k8s-master 上执行下面的命令，将kubelet-bootstrap用户绑定到系统集群角色
+
+```
+kubectl create clusterrolebinding kubelet-bootstrap \
+    --clusterrole=system:node-bootstrapper \
+    --user=kubelet-bootstrap
+```
+执行输出结果
+```
+[root@k8s-master ssl]# kubectl create clusterrolebinding kubelet-bootstrap \
+>     --clusterrole=system:node-bootstrapper \
+>     --user=kubelet-bootstrap
+clusterrolebinding.rbac.authorization.k8s.io/kubelet-bootstrap created
+```
+----------------------------------
+
+
+##### 在node2 启动服务
+```
+systemctl daemon-reload
+systemctl enable kubelet 
+systemctl start kubelet
+```
+
+检查服务状态
+```
+[root@k8s-node-2 cfg]# systemctl status kubelet
+● kubelet.service - Kubernetes Kubelet
+   Loaded: loaded (/usr/lib/systemd/system/kubelet.service; enabled; vendor preset: disabled)
+   Active: active (running) since Tue 2019-02-12 21:57:04 EST; 7min ago
+ Main PID: 22083 (kubelet)
+    Tasks: 9
+   Memory: 15.4M
+   CGroup: /system.slice/kubelet.service
+           └─22083 /k8s/kubernetes/bin/kubelet --logtostderr=true --v=4 --hostname-override=192.168.50.22 --kubeconfig=/k8s/kubernetes/cfg/kubelet.kubeconfig --bootstrap-kubeconfig=/k8s/kubernetes/cfg/bootstrap.kubeconfig --config=/k8s/kubernetes/cfg/ku...
+
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.331567   22083 feature_gate.go:206] feature gates: &{map[]}
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.598635   22083 server.go:825] Using self-signed cert (/k8s/kubernetes/ssl/kubelet.crt, /k8s/kubernetes/ssl/kubelet.key)
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.624734   22083 mount_linux.go:179] Detected OS with systemd
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.624778   22083 server.go:407] Version: v1.13.1
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.624818   22083 feature_gate.go:206] feature gates: &{map[]}
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.624861   22083 feature_gate.go:206] feature gates: &{map[]}
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.624931   22083 plugins.go:103] No cloud provider specified.
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.624940   22083 server.go:523] No cloud provider specified: "" from the config file: ""
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.624960   22083 bootstrap.go:65] Using bootstrap kubeconfig to generate TLS client cert, key and kubeconfig file
+Feb 12 21:57:04 k8s-node-2 kubelet[22083]: I0212 21:57:04.626275   22083 bootstrap.go:96] No valid private key and/or certificate found, reusing existing private key or creating a new one
+```
+
+##### 回到k8s-master 上
+执行：
+```
+kubectl get csr
+```
+执行结果，得到当前Pending 的节点hash
+
+```
+[root@k8s-master kubernetes]#  kubectl get csr      
+NAME                                                   AGE     REQUESTOR           CONDITION
+node-csr-01nlPeg1GtizfiqBM2IVT1ky8cN_b0RQdjDcJG5HDjo   70m     kubelet-bootstrap   Approved,Issued
+node-csr-SLiOfVvIHpAXRLvkunyT9DI78Bz5zzLjRp-yg7EytMQ   8m40s   kubelet-bootstrap   Pending
+```
+手工对节点csr授权
+```
+kubectl certificate approve node-csr-SLiOfVvIHpAXRLvkunyT9DI78Bz5zzLjRp-yg7EytMQ
+```
+
+执行结果
+```
+[root@k8s-master kubernetes]# kubectl certificate approve node-csr-SLiOfVvIHpAXRLvkunyT9DI78Bz5zzLjRp-yg7EytMQ
+certificatesigningrequest.certificates.k8s.io/node-csr-SLiOfVvIHpAXRLvkunyT9DI78Bz5zzLjRp-yg7EytMQ approved
+[root@k8s-master kubernetes]# kubectl get csr  
+NAME                                                   AGE   REQUESTOR           CONDITION
+node-csr-01nlPeg1GtizfiqBM2IVT1ky8cN_b0RQdjDcJG5HDjo   72m   kubelet-bootstrap   Approved,Issued
+node-csr-SLiOfVvIHpAXRLvkunyT9DI78Bz5zzLjRp-yg7EytMQ   10m   kubelet-bootstrap   Approved,Issued
+```
+
+
+#### 部署 kube-proxy组件
+
+kube-proxy 运行在所有 node节点上，它监听 apiserver 中 service 和 Endpoint 的变化情况，创建路由规则来进行服务负载均衡
+##### 创建 kube-proxy 配置文件
+执行命令
+```
+vim /k8s/kubernetes/cfg/kube-proxy
+
+```
+输入内容
+```
+KUBE_PROXY_OPTS="--logtostderr=true \
+--v=4 \
+--hostname-override=192.168.50.22 \
+--cluster-cidr=192.168.50.0/24 \
+--kubeconfig=/k8s/kubernetes/cfg/kube-proxy.kubeconfig"
+```
+
+##### 创建kube-proxy systemd文件
+执行命令
+```
+vim /usr/lib/systemd/system/kube-proxy.service 
+```
+输入内容
+```
+[Unit]
+Description=Kubernetes Proxy
+After=network.target
+ 
+[Service]
+EnvironmentFile=-/k8s/kubernetes/cfg/kube-proxy
+ExecStart=/k8s/kubernetes/bin/kube-proxy $KUBE_PROXY_OPTS
+Restart=on-failure
+ 
+[Install]
+WantedBy=multi-user.target
+```
+
+##### 启动 kube-proxy  服务
+```
+systemctl daemon-reload
+systemctl enable kube-proxy 
+systemctl start kube-proxy
+```
+
+查看服务状态
+```
+[root@k8s-node-2 cfg]# systemctl status  kube-proxy
+● kube-proxy.service - Kubernetes Proxy
+   Loaded: loaded (/usr/lib/systemd/system/kube-proxy.service; enabled; vendor preset: disabled)
+   Active: active (running) since Tue 2019-02-12 22:19:03 EST; 12s ago
+ Main PID: 22435 (kube-proxy)
+    Tasks: 0
+   Memory: 10.8M
+   CGroup: /system.slice/kube-proxy.service
+           ‣ 22435 /k8s/kubernetes/bin/kube-proxy --logtostderr=true --v=4 --hostname-override=192.168.50.22 --cluster-cidr=192.168.50.0/24 --kubeconfig=/k8s/kubernetes/cfg/kube-proxy.kubeconfig
+ ```
+ 
