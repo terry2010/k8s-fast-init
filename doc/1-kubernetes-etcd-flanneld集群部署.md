@@ -1693,7 +1693,155 @@ Feb 12 12:27:59 k8s-node-1 kube-proxy[21802]: I0212 12:27:59.332524   21802 conf
 Feb 12 12:28:00 k8s-node-1 kube-proxy[21802]: I0212 12:28:00.332119   21802 config.go:141] Calling handler.OnEndpointsUpdate
 Feb 12 12:28:01 k8s-node-1 kube-proxy[21802]: I0212 12:28:01.343378   21802 config.go:141] Calling handler.OnEndpointsUpdate
 Feb 12 12:28:02 k8s-node-1 kube-proxy[21802]: I0212 12:28:02.345592   21802 config.go:141] Calling handler.OnEndpointsUpdate
+``` 
+
+
+
+ ## Flanneld网络部署
+>默认没有flanneld网络，Node节点间的pod不能通信，只能Node内通信，为了部署步骤简洁明了，故flanneld放在后面安装
+flannel服务需要先于docker启动。flannel服务启动时主要做了以下几步的工作：
+从etcd中获取network的配置信息
+划分subnet，并在etcd中进行注册
+将子网信息记录到/run/flannel/subnet.env中
+
+
+> 所有子节点操作一致， 所以就写一个子节点的操作
+#### etcd注册网段
+执行命令
+```
+/k8s/etcd/bin/etcdctl --ca-file=/k8s/etcd/ssl/ca.pem --cert-file=/k8s/etcd/ssl/server.pem --key-file=/k8s/etcd/ssl/server-key.pem --endpoints="https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379"  set /k8s/network/config  '{ "Network": "192.168.0.0/16", "Backend": {"Type": "vxlan"}}'
+```
+输出结果
+```
+[root@k8s-master bin]# /k8s/etcd/bin/etcdctl --ca-file=/k8s/etcd/ssl/ca.pem --cert-file=/k8s/etcd/ssl/server.pem --key-file=/k8s/etcd/ssl/server-key.pem --endpoints="https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379"  set /k8s/network/config  '{ "Network": "192.168.0.0/16", "Backend": {"Type": "vxlan"}}'
+{ "Network": "192.168.0.0/16", "Backend": {"Type": "vxlan"}}
+```
+>flanneld 当前版本 (v0.10.0) 不支持 etcd v3，故使用 etcd v2 API 写入配置 key 和网段数据；
+写入的 Pod 网段 ${CLUSTER_CIDR} 必须是 /16 段地址，必须与 kube-controller-manager 的 --cluster-cidr 参数值一致；
+
+
+####  flannel安装
+##### 解压安装
+```
+tar -xvf flannel-v0.10.0-linux-amd64.tar.gz
+mv flanneld mk-docker-opts.sh /k8s/kubernetes/bin/
+```
+##### 配置flanneld
+
+执行命令
+```
+vim /k8s/kubernetes/cfg/flanneld
+```
+输入内容
+```
+FLANNEL_OPTIONS="--etcd-endpoints=https://192.168.50.10:2379,https://192.168.50.21:2379,https://192.168.50.22:2379 -etcd-cafile=/k8s/etcd/ssl/ca.pem -etcd-certfile=/k8s/etcd/ssl/server.pem -etcd-keyfile=/k8s/etcd/ssl/server-key.pem -etcd-prefix=/k8s/network"
+```
+创建flanneld systemd文件
+```
+vim /usr/lib/systemd/system/flanneld.service
+```
+输入内容
+```
+[Unit]
+Description=Flanneld overlay address etcd agent
+After=network-online.target network.target
+Before=docker.service
+ 
+[Service]
+Type=notify
+EnvironmentFile=/k8s/kubernetes/cfg/flanneld
+ExecStart=/k8s/kubernetes/bin/flanneld --ip-masq $FLANNEL_OPTIONS
+ExecStartPost=/k8s/kubernetes/bin/mk-docker-opts.sh -k DOCKER_NETWORK_OPTIONS -d /run/flannel/subnet.env
+Restart=on-failure
+ 
+[Install]
+WantedBy=multi-user.target
+```
+注意
+>mk-docker-opts.sh 脚本将分配给 flanneld 的 Pod 子网网段信息写入 /run/flannel/docker 文件，后续 docker 启动时 使用这个文件中的环境变量配置 docker0 网桥；
+flanneld 使用系统缺省路由所在的接口与其它节点通信，对于有多个网络接口（如内网和公网）的节点，可以用 -iface 参数指定通信接口;
+flanneld 运行时需要 root 权限；
+
+
+##### 配置Docker启动指定子网
+> 
+> 修改
+> EnvironmentFile=/run/flannel/subnet.env，
+> ExecStart=/usr/bin/dockerd $DOCKER_NETWORK_OPTIONS
+> 即可
+```
+vim /usr/lib/systemd/system/docker.service 
+```
+按下面的提示修改内容
+```
+[Unit]
+Description=Docker Application Container Engine
+Documentation=https://docs.docker.com
+After=network-online.target firewalld.service
+Wants=network-online.target
+ 
+[Service]
+Type=notify
+EnvironmentFile=/run/flannel/subnet.env
+ExecStart=/usr/bin/dockerd $DOCKER_NETWORK_OPTIONS
+ExecReload=/bin/kill -s HUP $MAINPID
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+Delegate=yes
+KillMode=process
+Restart=on-failure
+StartLimitBurst=3
+StartLimitInterval=60s
+ 
+[Install]
+WantedBy=multi-user.target
 ```
 
+##### 启动服务
+注意启动flannel前要关闭docker及相关的kubelet这样flannel才会覆盖docker0网桥
+```
+systemctl daemon-reload
+systemctl stop docker
+systemctl enable flanneld
+systemctl start flanneld
+systemctl start docker
+systemctl restart kubelet
+systemctl restart kube-proxy
+```
 
- 
+##### 验证服务
+```
+[root@k8s-node-1 k8s]# cat /run/flannel/subnet.env 
+DOCKER_OPT_BIP="--bip=192.168.43.1/24"
+DOCKER_OPT_IPMASQ="--ip-masq=false"
+DOCKER_OPT_MTU="--mtu=1450"
+DOCKER_NETWORK_OPTIONS=" --bip=192.168.43.1/24 --ip-masq=false --mtu=1450"
+
+
+
+[root@k8s-node-1 k8s]# ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: ens33: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 00:0c:29:a8:6c:2b brd ff:ff:ff:ff:ff:ff
+    inet 192.168.50.21/24 brd 192.168.50.255 scope global noprefixroute dynamic ens33
+       valid_lft 80004sec preferred_lft 80004sec
+    inet6 fe80::d525:988a:83cb:61c3/64 scope link noprefixroute 
+       valid_lft forever preferred_lft forever
+3: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default 
+    link/ether 02:42:81:fc:a4:1d brd ff:ff:ff:ff:ff:ff
+    inet 192.168.43.1/24 brd 192.168.43.255 scope global docker0
+       valid_lft forever preferred_lft forever
+4: flannel.1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc noqueue state UNKNOWN group default 
+    link/ether fe:1e:3c:c0:83:77 brd ff:ff:ff:ff:ff:ff
+    inet 192.168.43.0/32 scope global flannel.1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::fc1e:3cff:fec0:8377/64 scope link 
+       valid_lft forever preferred_lft forever
+```
