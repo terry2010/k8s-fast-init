@@ -1770,7 +1770,8 @@ flanneld 运行时需要 root 权限；
 ##### 配置Docker启动指定子网
 > 
 > 修改
-> EnvironmentFile=/run/flannel/subnet.env，
+> EnvironmentFile=/run/flannel/subnet.env
+
 > ExecStart=/usr/bin/dockerd $DOCKER_NETWORK_OPTIONS
 > 即可
 ```
