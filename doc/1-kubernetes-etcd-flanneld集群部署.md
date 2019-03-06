@@ -107,6 +107,7 @@ cat << EOF | tee ca-config.json
   }
 }
 EOF
+
 ```
 ##### etcd ca证书
 ```
@@ -126,6 +127,7 @@ cat << EOF | tee ca-csr.json
     ]
 }
 EOF
+
 ```
 ####  etcd server证书
 
@@ -151,6 +153,7 @@ cat << EOF | tee server-csr.json
     ]
 }
 EOF
+
 ```
 
 #### 生成etcd ca证书和私钥 初始化ca
