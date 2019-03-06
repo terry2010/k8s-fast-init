@@ -212,7 +212,6 @@ cp etcd etcdctl /k8s/etcd/bin/
 配置etcd主文件
 
 ```
-vim /k8s/etcd/cfg/etcd.conf 
 cat << EOF | tee  /k8s/etcd/cfg/etcd.conf
 #[Member]
 ETCD_NAME="etcd01"
@@ -237,6 +236,7 @@ ETCD_PEER_KEY_FILE="/k8s/etcd/ssl/server-key.pem"
 ETCD_PEER_TRUSTED_CA_FILE="/k8s/etcd/ssl/ca.pem"
 ETCD_PEER_CLIENT_CERT_AUTH="true"
 EOF
+
 ```
 
 配置etcd启动文件
@@ -244,6 +244,7 @@ EOF
 ```
 mkdir -p /data1/etcd
 vim /usr/lib/systemd/system/etcd.service
+
 ```
 ```
 [Unit]
