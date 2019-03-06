@@ -1709,6 +1709,8 @@ flannel服务需要先于docker启动。flannel服务启动时主要做了以下
 将子网信息记录到/run/flannel/subnet.env中
 
 
+> master 上无需部署本服务
+
 > 所有子节点操作一致， 所以就写一个子节点的操作
 #### etcd注册网段
 执行命令
