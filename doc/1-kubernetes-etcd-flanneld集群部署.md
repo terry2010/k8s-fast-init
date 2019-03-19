@@ -45,6 +45,7 @@ k8s-node2   |	192.168.50.22|	k8s-node|	etcd、kubelet、docker、kube_proxy
 @todo ：先关闭防火墙，生产机的上线流程写完了再改
 ```
 systemctl stop firewalld
+chkconfig iptables off  
 ```
 
 ## MASTER 服务器，基础安装 和证书生成
